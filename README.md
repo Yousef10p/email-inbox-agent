@@ -87,6 +87,73 @@ watch the rate-limit note below.
 On success, a file like `09 07 26.md` appears in the project folder with a
 Markdown summary of your last 5 inbox emails.
 
+## 5. Run it automatically on a schedule (optional)
+
+The script itself is a one-shot run, not a background daemon. To run it
+automatically at a specific time each day, use Windows Task Scheduler with
+`run_agent.bat` (it `cd`s into the project folder, runs the agent through
+the venv's Python, and appends output/errors to `run_log.txt` so you can
+see what happened even though Task Scheduler runs silently).
+
+The target schedule is **6:05 AM Riyadh (KSA) time**. This machine's system
+timezone is already `Arab Standard Time (UTC+03:00, Riyadh)`, so the local
+time you set in Task Scheduler is the same as Riyadh time — no conversion
+needed, just use `06:05`. (If you ever move this to a machine set to a
+different timezone, convert 6:05 AM KSA to that machine's local time first.)
+
+### Start / create the scheduled task
+
+**GUI:**
+1. Open Task Scheduler (Start menu → search "Task Scheduler").
+2. Action → Create Basic Task.
+3. Name: `InboxAgent`.
+4. Trigger: **Daily**, Start time: **6:05:00 AM**.
+5. Action: **Start a program**.
+6. Program/script: `D:\code\Email Inbox Agent\run_agent.bat`.
+7. Finish. (Optional but recommended: open the task's Properties afterward
+   and check "Wake the computer to run this task" under the Conditions tab,
+   so it still fires if the PC is asleep at 6:05 AM.)
+
+**Or one command** (run in PowerShell):
+
+```powershell
+schtasks /create /tn "InboxAgent" /tr "'D:\code\Email Inbox Agent\run_agent.bat'" /sc daily /st 06:05
+```
+
+### Check it's set up / run it on demand to test
+
+```powershell
+schtasks /query /tn "InboxAgent" /v /fo list
+schtasks /run /tn "InboxAgent"
+```
+
+After a manual or scheduled run, check `run_log.txt` in the project folder
+if something seems off.
+
+### Stop it
+
+To pause the schedule without deleting it (keeps the task, just stops it
+from firing):
+
+```powershell
+schtasks /change /tn "InboxAgent" /disable
+```
+
+Re-enable it later with:
+
+```powershell
+schtasks /change /tn "InboxAgent" /enable
+```
+
+To remove it completely:
+
+```powershell
+schtasks /delete /tn "InboxAgent" /f
+```
+
+(GUI equivalent: Task Scheduler → find `InboxAgent` in the task list →
+right-click → **Disable** or **Delete**.)
+
 ## How it works
 
 - `email_tools.py` — `get_last_emails` tool: opens an IMAP connection,
@@ -96,6 +163,9 @@ Markdown summary of your last 5 inbox emails.
 - `file_tools.py` — `save_summary` tool: writes the given Markdown text to
   `dd mm yy.md`, always naming the file from today's date regardless of
   what the model passes.
+- `run_agent.bat` — wrapper for Task Scheduler: `cd`s into the project
+  folder, runs `main.py` through the venv's Python, logs to
+  `run_log.txt`.
 - `main.py` — builds the agent with `langchain.agents.create_agent`, wires
   up both tools and a `ChatGroq` model, and runs one summarization pass.
   `parallel_tool_calls` is disabled so the model is forced to read the real
